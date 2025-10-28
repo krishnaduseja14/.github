@@ -1,0 +1,487 @@
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.util.HashMap;
+import java.util.ArrayList;
+
+/**
+ * HostelSystem.java
+ * - No preset admin credentials.
+ * - Register Admin from Login screen (creates first admin).
+ * - After registering, use Login to access the main menu.
+ * - Main menu also has "Manage Admins" to add more admins (optional).
+ *
+ * Compile: javac HostelSystem.java
+ * Run:     java HostelSystem
+ */
+public class HostelSystem {
+
+    // ---------------- in-memory "databases" ----------------
+    private static HashMap<String, String> admins = new HashMap<>(); // username -> password
+    private static java.util.List<Student> students = new ArrayList<>();
+    private static java.util.List<Room> rooms = new ArrayList<>();
+    private static java.util.List<Hostel> hostels = new ArrayList<>();
+    private static java.util.List<Warden> wardens = new ArrayList<>();
+    private static java.util.List<Allocate> allocations = new ArrayList<>();
+
+    // ---------- simple model classes ----------
+    static class Student { String id, name; Student(String i,String n){id=i;name=n;} public String toString(){return "ID:"+id+" | "+name;} }
+    static class Room    { String no,type,status; Room(String n,String t,String s){no=n;type=t;status=s;} public String toString(){return no+" | "+type+" | "+status;} }
+    static class Hostel  { String hid,name,loc; Hostel(String h,String n,String l){hid=h;name=n;loc=l;} public String toString(){return hid+" | "+name+" | "+loc;} }
+    static class Warden  { String wid,name,contact,hid; Warden(String w,String n,String c,String h){wid=w;name=n;contact=c;hid=h;} public String toString(){return wid+" | "+name+" | "+contact+" | Hostel:"+hid;} }
+    static class Allocate{ String sid,room; Allocate(String s,String r){sid=s;room=r;} public String toString(){ return sid+" -> Room "+room; } }
+
+    // ---------- entry (EDT) ----------
+    public static void main(String[] args) {
+        // populate a few rooms so UI is usable immediately (optional)
+        rooms.add(new Room("101","Single","Vacant"));
+        rooms.add(new Room("102","Double","Vacant"));
+        rooms.add(new Room("103","Single","Vacant"));
+
+        // launch UI on EDT
+        SwingUtilities.invokeLater(() -> showLoginWindow());
+    }
+
+    // ---------- LOGIN / REGISTER UI ----------
+    private static void showLoginWindow() {
+        JFrame f = new JFrame("Hostel System - Login / Register Admin");
+        f.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        f.setSize(420,300);
+        f.setLayout(null);
+        f.setLocationRelativeTo(null);
+
+        JLabel header = new JLabel("Hostel Management", SwingConstants.CENTER);
+        header.setFont(new Font("SansSerif", Font.BOLD, 18));
+        header.setBounds(60,10,300,30);
+        f.add(header);
+
+        JLabel userLabel = new JLabel("Username:");
+        userLabel.setBounds(40,60,90,25);
+        f.add(userLabel);
+
+        JTextField userField = new JTextField();
+        userField.setBounds(140,60,220,25);
+        f.add(userField);
+
+        JLabel passLabel = new JLabel("Password:");
+        passLabel.setBounds(40,100,90,25);
+        f.add(passLabel);
+
+        JPasswordField passField = new JPasswordField();
+        passField.setBounds(140,100,220,25);
+        f.add(passField);
+
+        JButton loginBtn = new JButton("Login");
+        loginBtn.setBounds(140,140,100,35);
+        f.add(loginBtn);
+
+        JButton registerBtn = new JButton("Register Admin");
+        registerBtn.setBounds(260,140,150,35);
+        f.add(registerBtn);
+
+        // info label shows guidance (useful when no admins exist)
+        JLabel info = new JLabel("", SwingConstants.CENTER);
+        info.setBounds(30,190,360,40);
+        info.setForeground(new Color(80,80,80));
+        f.add(info);
+
+        // show hint if no admin exists
+        updateInfoLabel(info);
+
+        // login action
+        loginBtn.addActionListener(e -> {
+            String u = userField.getText().trim();
+            String p = new String(passField.getPassword());
+            if(u.isEmpty() || p.isEmpty()) {
+                JOptionPane.showMessageDialog(f, "Please enter username and password.", "Input required", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            if(admins.containsKey(u) && admins.get(u).equals(p)) {
+                f.dispose();
+                showMainMenu(); // open main menu
+            } else {
+                JOptionPane.showMessageDialog(f, "Invalid username or password.", "Login failed", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        // register action - opens a small form to create admin account
+        registerBtn.addActionListener(e -> {
+            showRegisterAdminDialog(f, info);
+        });
+
+        f.setVisible(true);
+    }
+
+    // update hint label depending on whether admins exist
+    private static void updateInfoLabel(JLabel info) {
+        if(admins.isEmpty()) {
+            info.setText("<html><center>No admin account found. Click <b>Register Admin</b> to create the first admin.</center></html>");
+        } else {
+            info.setText("<html><center>Have an account? Enter credentials and click <b>Login</b>.<br>You may also register additional admins.</center></html>");
+        }
+    }
+
+    // small modal dialog to register admin
+    private static void showRegisterAdminDialog(JFrame parent, JLabel info) {
+        JDialog d = new JDialog(parent, "Register Admin", true);
+        d.setSize(380,230);
+        d.setLayout(null);
+        d.setLocationRelativeTo(parent);
+
+        JLabel ul = new JLabel("New Username:");
+        ul.setBounds(30,30,120,25);
+        d.add(ul);
+
+        JTextField ufield = new JTextField();
+        ufield.setBounds(150,30,180,25);
+        d.add(ufield);
+
+        JLabel pl = new JLabel("New Password:");
+        pl.setBounds(30,70,120,25);
+        d.add(pl);
+
+        JPasswordField pfield = new JPasswordField();
+        pfield.setBounds(150,70,180,25);
+        d.add(pfield);
+
+        JLabel pl2 = new JLabel("Confirm Password:");
+        pl2.setBounds(30,110,120,25);
+        d.add(pl2);
+
+        JPasswordField pfield2 = new JPasswordField();
+        pfield2.setBounds(150,110,180,25);
+        d.add(pfield2);
+
+        JButton create = new JButton("Create Admin");
+        create.setBounds(110,150,150,30);
+        d.add(create);
+
+        create.addActionListener(ae -> {
+            String un = ufield.getText().trim();
+            String pw = new String(pfield.getPassword());
+            String pw2 = new String(pfield2.getPassword());
+
+            if(un.isEmpty() || pw.isEmpty() || pw2.isEmpty()) {
+                JOptionPane.showMessageDialog(d, "Please fill all fields.", "Missing data", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            if(!pw.equals(pw2)) {
+                JOptionPane.showMessageDialog(d, "Passwords do not match.", "Mismatch", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            if(admins.containsKey(un)) {
+                JOptionPane.showMessageDialog(d, "Username already exists. Choose another.", "Duplicate", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            admins.put(un, pw);
+            JOptionPane.showMessageDialog(d, "Admin created successfully.\nYou can now login with this account.", "Success", JOptionPane.INFORMATION_MESSAGE);
+            d.dispose();
+            updateInfoLabel(info);
+        });
+
+        d.setVisible(true);
+    }
+
+    // ---------- MAIN MENU (after successful login) ----------
+    private static void showMainMenu() {
+        JFrame m = new JFrame("Hostel Management - Main Menu");
+        m.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        m.setSize(520,520);
+        m.setLocationRelativeTo(null);
+        m.setLayout(null);
+
+        JLabel title = new JLabel("Hostel Management System", SwingConstants.CENTER);
+        title.setFont(new Font("SansSerif", Font.BOLD, 20));
+        title.setBounds(40,10,420,40);
+        m.add(title);
+
+        // buttons (visually nicer spacing)
+        JButton studentsBtn = styledButton("Student Management", 60, 80);
+        JButton roomsBtn    = styledButton("Room Management", 60, 130);
+        JButton hostelsBtn  = styledButton("Hostel Management", 60, 180);
+        JButton wardensBtn  = styledButton("Warden Management", 60, 230);
+        JButton allocBtn    = styledButton("Room Allocation", 60, 280);
+        JButton adminsBtn   = styledButton("Manage Admins", 60, 330);
+        JButton exitBtn     = styledButton("Logout / Exit", 60, 380);
+
+        m.add(studentsBtn); m.add(roomsBtn); m.add(hostelsBtn);
+        m.add(wardensBtn);  m.add(allocBtn);  m.add(adminsBtn); m.add(exitBtn);
+
+        studentsBtn.addActionListener(e -> showStudentWindow());
+        roomsBtn.addActionListener(e -> showRoomWindow());
+        hostelsBtn.addActionListener(e -> showHostelWindow());
+        wardensBtn.addActionListener(e -> showWardenWindow());
+        allocBtn.addActionListener(e -> showAllocationWindow());
+        adminsBtn.addActionListener(e -> showManageAdminsDialog(m));
+        exitBtn.addActionListener(e -> {
+            int r = JOptionPane.showConfirmDialog(m, "Logout and exit?", "Confirm", JOptionPane.YES_NO_OPTION);
+            if(r==JOptionPane.YES_OPTION) System.exit(0);
+        });
+
+        m.setVisible(true);
+    }
+
+    private static JButton styledButton(String txt, int x, int y) {
+        JButton b = new JButton(txt);
+        b.setFont(new Font("SansSerif", Font.BOLD, 14));
+        b.setBackground(new Color(0x2E86C1));
+        b.setForeground(Color.WHITE);
+        b.setBounds(x,y,380,35);
+        b.setFocusPainted(false);
+        return b;
+    }
+
+    // ---------- Manage Admins (add / list) ----------
+    private static void showManageAdminsDialog(JFrame parent) {
+        JDialog d = new JDialog(parent, "Manage Admins", true);
+        d.setSize(420,360);
+        d.setLayout(null);
+        d.setLocationRelativeTo(parent);
+
+        DefaultListModel<String> model = new DefaultListModel<>();
+        JList<String> list = new JList<>(model);
+        JScrollPane sp = new JScrollPane(list);
+        sp.setBounds(20,20,380,160);
+        d.add(sp);
+
+        // populate list
+        refreshAdminList(model);
+
+        JLabel ulabel = new JLabel("New username:");
+        ulabel.setBounds(20,200,120,25); d.add(ulabel);
+        JTextField ufield = new JTextField(); ufield.setBounds(140,200,160,25); d.add(ufield);
+
+        JLabel plabel = new JLabel("Password:"); plabel.setBounds(20,235,120,25); d.add(plabel);
+        JPasswordField pfield = new JPasswordField(); pfield.setBounds(140,235,160,25); d.add(pfield);
+
+        JButton addBtn = new JButton("Add Admin"); addBtn.setBounds(310,200,90,60);
+        d.add(addBtn);
+
+        addBtn.addActionListener(e -> {
+            String u = ufield.getText().trim();
+            String p = new String(pfield.getPassword());
+            if(u.isEmpty() || p.isEmpty()) { JOptionPane.showMessageDialog(d, "Fill both fields", "Missing", JOptionPane.WARNING_MESSAGE); return; }
+            if(admins.containsKey(u)) { JOptionPane.showMessageDialog(d, "Username exists", "Duplicate", JOptionPane.WARNING_MESSAGE); return; }
+            admins.put(u,p);
+            refreshAdminList(model);
+            ufield.setText(""); pfield.setText("");
+            JOptionPane.showMessageDialog(d,"Admin added");
+        });
+
+        // remove selected admin
+        JButton delBtn = new JButton("Delete Selected"); delBtn.setBounds(120,280,180,30);
+        d.add(delBtn);
+        delBtn.addActionListener(e -> {
+            int idx = list.getSelectedIndex();
+            if(idx>=0) {
+                String entry = model.getElementAt(idx); // format "username"
+                String username = entry;
+                int confirm = JOptionPane.showConfirmDialog(d, "Delete admin '"+username+"'?", "Confirm", JOptionPane.YES_NO_OPTION);
+                if(confirm==JOptionPane.YES_OPTION) {
+                    admins.remove(username);
+                    refreshAdminList(model);
+                    JOptionPane.showMessageDialog(d,"Deleted");
+                }
+            } else {
+                JOptionPane.showMessageDialog(d,"Select an admin to delete");
+            }
+        });
+
+        d.setVisible(true);
+    }
+
+    private static void refreshAdminList(DefaultListModel<String> model) {
+        model.clear();
+        for(String u : admins.keySet()) model.addElement(u);
+    }
+
+    // ---------- Student Window ----------
+    private static void showStudentWindow() {
+        JFrame f = new JFrame("Student Management");
+        f.setSize(480,420); f.setLocationRelativeTo(null);
+        f.setLayout(null);
+
+        JLabel lid = new JLabel("Student ID:"); lid.setBounds(20,20,100,25); f.add(lid);
+        JTextField tfid = new JTextField(); tfid.setBounds(120,20,180,25); f.add(tfid);
+
+        JLabel lname = new JLabel("Name:"); lname.setBounds(20,60,100,25); f.add(lname);
+        JTextField tfname = new JTextField(); tfname.setBounds(120,60,300,25); f.add(tfname);
+
+        DefaultListModel<String> model = new DefaultListModel<>();
+        JList<String> list = new JList<>(model);
+        JScrollPane sp = new JScrollPane(list); sp.setBounds(20,120,420,220); f.add(sp);
+
+        JButton add = new JButton("Add Student"); add.setBounds(320,20,120,60); f.add(add);
+        JButton view = new JButton("View All"); add.setBounds(320,20,120,60); // note: shadowed by add -- we'll use action listener on add and view separately
+
+        add.addActionListener(e -> {
+            String id = tfid.getText().trim(), name = tfname.getText().trim();
+            if(id.isEmpty() || name.isEmpty()) { JOptionPane.showMessageDialog(f,"Enter both fields"); return; }
+            students.add(new Student(id,name));
+            tfid.setText(""); tfname.setText("");
+            JOptionPane.showMessageDialog(f,"Student added");
+        });
+
+        JButton showAll = new JButton("Show All"); showAll.setBounds(320,90,120,30); f.add(showAll);
+        showAll.addActionListener(e -> { model.clear(); for(Student s: students) model.addElement(s.toString()); });
+
+        f.setVisible(true);
+    }
+
+    // ---------- Room Window ----------
+    private static void showRoomWindow() {
+        JFrame f = new JFrame("Room Management");
+        f.setSize(520,420); f.setLocationRelativeTo(null);
+        f.setLayout(null);
+
+        JLabel lrn = new JLabel("Room No:"); lrn.setBounds(20,20,100,25); f.add(lrn);
+        JTextField trn = new JTextField(); trn.setBounds(120,20,140,25); f.add(trn);
+
+        JLabel lrt = new JLabel("Type:"); lrt.setBounds(280,20,80,25); f.add(lrt);
+        JTextField trt = new JTextField(); trt.setBounds(330,20,120,25); f.add(trt);
+
+        DefaultListModel<String> model = new DefaultListModel<>();
+        JList<String> list = new JList<>(model);
+        JScrollPane sp = new JScrollPane(list); sp.setBounds(20,120,440,240); f.add(sp);
+
+        JButton add = new JButton("Add Room"); add.setBounds(20,60,120,40); f.add(add);
+        JButton show = new JButton("Show Rooms"); show.setBounds(160,60,120,40); f.add(show);
+
+        add.addActionListener(e -> {
+            String no = trn.getText().trim(), tp = trt.getText().trim();
+            if(no.isEmpty() || tp.isEmpty()) { JOptionPane.showMessageDialog(f,"Enter both fields"); return; }
+            rooms.add(new Room(no,tp,"Vacant"));
+            trn.setText(""); trt.setText("");
+            JOptionPane.showMessageDialog(f,"Room added");
+        });
+
+        show.addActionListener(e -> { model.clear(); for(Room r:rooms) model.addElement(r.toString()); });
+
+        f.setVisible(true);
+    }
+
+    // ---------- Hostel Window ----------
+    private static void showHostelWindow() {
+        JFrame f = new JFrame("Hostel Management");
+        f.setSize(520,420); f.setLocationRelativeTo(null);
+        f.setLayout(null);
+
+        JLabel lhid = new JLabel("Hostel ID:"); lhid.setBounds(20,20,100,25); f.add(lhid);
+        JTextField thid = new JTextField(); thid.setBounds(120,20,140,25); f.add(thid);
+
+        JLabel lhn = new JLabel("Name:"); lhn.setBounds(20,60,100,25); f.add(lhn);
+        JTextField thn = new JTextField(); thn.setBounds(120,60,240,25); f.add(thn);
+
+        JLabel lloc = new JLabel("Location:"); lloc.setBounds(20,100,100,25); f.add(lloc);
+        JTextField tloc = new JTextField(); tloc.setBounds(120,100,240,25); f.add(tloc);
+
+        DefaultListModel<String> model = new DefaultListModel<>();
+        JList<String> list = new JList<>(model);
+        JScrollPane sp = new JScrollPane(list); sp.setBounds(20,150,460,220); f.add(sp);
+
+        JButton add = new JButton("Add Hostel"); add.setBounds(380,20,100,40); f.add(add);
+        JButton show = new JButton("Show Hostels"); show.setBounds(380,80,100,40); f.add(show);
+
+        add.addActionListener(e -> {
+            String hid = thid.getText().trim(), name = thn.getText().trim(), loc = tloc.getText().trim();
+            if(hid.isEmpty() || name.isEmpty() || loc.isEmpty()) { JOptionPane.showMessageDialog(f,"Enter all fields"); return; }
+            hostels.add(new Hostel(hid,name,loc));
+            thid.setText(""); thn.setText(""); tloc.setText("");
+            JOptionPane.showMessageDialog(f,"Hostel added");
+        });
+
+        show.addActionListener(e -> { model.clear(); for(Hostel h:hostels) model.addElement(h.toString()); });
+
+        f.setVisible(true);
+    }
+
+    // ---------- Warden Window ----------
+    private static void showWardenWindow() {
+        JFrame f = new JFrame("Warden Management");
+        f.setSize(520,420); f.setLocationRelativeTo(null);
+        f.setLayout(null);
+
+        JLabel lwid = new JLabel("Warden ID:"); lwid.setBounds(20,20,100,25); f.add(lwid);
+        JTextField twid = new JTextField(); twid.setBounds(120,20,140,25); f.add(twid);
+
+        JLabel lwn = new JLabel("Name:"); lwn.setBounds(20,60,100,25); f.add(lwn);
+        JTextField twn = new JTextField(); twn.setBounds(120,60,240,25); f.add(twn);
+
+        JLabel lcont = new JLabel("Contact:"); lcont.setBounds(20,100,100,25); f.add(lcont);
+        JTextField tcont = new JTextField(); tcont.setBounds(120,100,140,25); f.add(tcont);
+
+        DefaultListModel<String> model = new DefaultListModel<>();
+        JList<String> list = new JList<>(model);
+        JScrollPane sp = new JScrollPane(list); sp.setBounds(20,150,460,220); f.add(sp);
+
+        JButton add = new JButton("Add Warden"); add.setBounds(380,20,100,40); f.add(add);
+        JButton show = new JButton("Show Wardens"); show.setBounds(380,80,100,40); f.add(show);
+
+        add.addActionListener(e -> {
+            String wid = twid.getText().trim(), name = twn.getText().trim(), contact = tcont.getText().trim();
+            if(wid.isEmpty() || name.isEmpty()) { JOptionPane.showMessageDialog(f,"Enter required fields"); return; }
+            wardens.add(new Warden(wid,name,contact,""));
+            twid.setText(""); twn.setText(""); tcont.setText("");
+            JOptionPane.showMessageDialog(f,"Warden added");
+        });
+
+        show.addActionListener(e -> { model.clear(); for(Warden w:wardens) model.addElement(w.toString()); });
+
+        f.setVisible(true);
+    }
+
+    // ---------- Allocation Window ----------
+    private static void showAllocationWindow() {
+        JFrame f = new JFrame("Room Allocation");
+        f.setSize(520,480); f.setLocationRelativeTo(null);
+        f.setLayout(null);
+
+        JLabel lsid = new JLabel("Student ID:"); lsid.setBounds(20,20,100,25); f.add(lsid);
+        JTextField tsid = new JTextField(); tsid.setBounds(120,20,160,25); f.add(tsid);
+
+        JLabel lroom = new JLabel("Select Room:"); lroom.setBounds(20,60,100,25); f.add(lroom);
+        JComboBox<String> roomBox = new JComboBox<>();
+        roomBox.setBounds(120,60,160,25);
+        for(Room r:rooms) roomBox.addItem(r.no);
+        f.add(roomBox);
+
+        DefaultListModel<String> model = new DefaultListModel<>();
+        JList<String> list = new JList<>(model);
+        JScrollPane sp = new JScrollPane(list); sp.setBounds(20,140,460,260); f.add(sp);
+
+        JButton alloc = new JButton("Allocate"); alloc.setBounds(300,20,90,60); f.add(alloc);
+        JButton refresh = new JButton("Refresh List"); refresh.setBounds(400,20,120,60); f.add(refresh);
+        JButton del = new JButton("Delete Selected"); del.setBounds(300,90,220,30); f.add(del);
+
+        alloc.addActionListener(e -> {
+            String sid = tsid.getText().trim();
+            String roomNo = (String)roomBox.getSelectedItem();
+            if(sid.isEmpty()) { JOptionPane.showMessageDialog(f,"Enter Student ID"); return; }
+            boolean ok = false;
+            for(Room r:rooms) {
+                if(r.no.equals(roomNo) && r.status.equals("Vacant")) {
+                    allocations.add(new Allocate(sid,roomNo));
+                    r.status = "Occupied";
+                    ok = true; break;
+                }
+            }
+            if(ok) { JOptionPane.showMessageDialog(f,"Allocated"); tsid.setText(""); }
+            else JOptionPane.showMessageDialog(f,"Room not available");
+        });
+
+        refresh.addActionListener(e -> { model.clear(); for(Allocate a: allocations) model.addElement(a.toString()); });
+
+        del.addActionListener(e -> {
+            int i = list.getSelectedIndex();
+            if(i>=0) {
+                String room = allocations.get(i).room;
+                allocations.remove(i);
+                for(Room r:rooms) if(r.no.equals(room)) r.status = "Vacant";
+                model.remove(i);
+                JOptionPane.showMessageDialog(f,"Deleted allocation and freed room");
+            } else JOptionPane.showMessageDialog(f,"Select an allocation to delete");
+        });
+
+        f.setVisible(true);
+    }
+}
